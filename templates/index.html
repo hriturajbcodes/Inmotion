@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>In-Motion Weighbridge Dashboard | SMS Jindal Steel</title>
+    <!-- Prevent theme flash -->
+    <script>
+        (function() {
+            var storedTheme = localStorage.getItem('imwb_theme');
+            var systemTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+            var theme = storedTheme || systemTheme || 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="operate-body">
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-left">
+            <span class="org-badge">SMS</span>
+            <h1 class="header-title">In-Motion Weighbridge Dashboard</h1>
+            <div class="status-indicator-bar">
+                <span class="pulse-dot" id="db-status-dot" data-state="fresh" aria-hidden="true"></span>
+                <span id="header-data-current" class="status-text" aria-live="polite">Data current to --</span>
+            </div>
+        </div>
+
+        <nav class="header-nav" aria-label="Main Navigation">
+            <a href="/" class="nav-tab active" id="nav-dashboard-link">Dashboard</a>
+            <a href="/insights" class="nav-tab" id="nav-insights-link">Insights</a>
+        </nav>
+
+        <div class="header-controls">
+            <div class="control-group">
+                <label for="global-area-select">Area</label>
+                <select id="global-area-select" class="form-select">
+                    <option value="ALL">ALL</option>
+                    <option value="BF1">BF1</option>
+                    <option value="BF2">BF2</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="global-date-select">Range</label>
+                <select id="global-date-select" class="form-select">
+                    <option value="7">Last 7 Days</option>
+                    <option value="14">Last 14 Days</option>
+                    <option value="30">Last 30 Days</option>
+                    <option value="all">All Data</option>
+                </select>
+            </div>
+
+            <button type="button" id="btn-print" class="btn btn-secondary" aria-label="Print or Save PDF">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                <span>Print</span>
+            </button>
+
+            <button type="button" id="btn-theme-toggle" class="btn btn-secondary" aria-label="Toggle Dark/Light Theme">
+                <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg><span id="theme-toggle-text" class="visually-hidden">Theme</span>
+            </button>
+        </div>
+
+	<div class="header-branding">
+		<img src="/static/jspl_logo.png" alt="Jindal Steel" class="brand-logo">
+		<div class="brand-text">
+			<span class="subtext">Innovation for Excellence ©2026</span>
+			<span class="subtext-credit">Digital Transformation &amp; Automation</span>
+		</div>
+	</div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="main-content">
+        <!-- Four KPI Cards -->
+        <section class="kpi-grid" aria-label="Latest Matched Metrics">
+            <!-- Card 1: Latest Complete Matched Trip -->
+            <article class="kpi-card" id="card-latest-trip">
+                <div class="kpi-header">Latest Complete Matched Trip</div>
+                <div class="kpi-body">
+                    <div class="kpi-meta-row">
+                        <span class="meta-label">Cast ID</span>
+                        <strong class="meta-value" id="kpi-cast-id">--</strong>
+                    </div>
+                    <div class="kpi-meta-row">
+                        <span class="meta-label">Torpedo No.</span>
+                        <strong class="meta-value highlight" id="kpi-torpedo-no">--</strong>
+                    </div>
+                    <div class="kpi-meta-row">
+                        <span class="meta-label">Static Source</span>
+                        <span class="meta-value badge" id="kpi-source">--</span>
+                    </div>
+                    <div class="kpi-meta-row">
+                        <span class="meta-label">Production Time</span>
+                        <span class="meta-value tabular" id="kpi-prod-time">--</span>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Card 2: Static Weighbridge -->
+            <article class="kpi-card" id="card-static-wb">
+                <div class="kpi-header">Static Weighbridge</div>
+                <div class="kpi-body">
+                    <div class="primary-weight-display">
+                        <span class="weight-number" id="kpi-static-net" aria-live="polite">--</span>
+                        <span class="weight-unit">MT</span>
+                    </div>
+                    <div class="weight-supporting-grid">
+                        <div class="supp-block">
+                            <span class="supp-label">Gross</span>
+                            <span class="supp-value" id="kpi-static-gross">-- MT</span>
+                            <span class="supp-time" id="kpi-static-gross-time">--</span>
+                        </div>
+                        <div class="supp-block">
+                            <span class="supp-label">Tare</span>
+                            <span class="supp-value" id="kpi-static-tare">-- MT</span>
+                            <span class="supp-time" id="kpi-static-tare-time">--</span>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Card 3: In-Motion Weighbridge -->
+            <article class="kpi-card" id="card-imwb">
+                <div class="kpi-header">In-Motion Weighbridge</div>
+                <div class="kpi-body">
+                    <div class="primary-weight-display">
+                        <span class="weight-number" id="kpi-imwb-net" aria-live="polite">--</span>
+                        <span class="weight-unit">MT</span>
+                    </div>
+                    <div class="weight-supporting-grid">
+                        <div class="supp-block">
+                            <span class="supp-label">Gross</span>
+                            <span class="supp-value" id="kpi-imwb-gross">-- MT</span>
+                            <span class="supp-time" id="kpi-imwb-gross-time">--</span>
+                        </div>
+                        <div class="supp-block">
+                            <span class="supp-label">Tare</span>
+                            <span class="supp-value" id="kpi-imwb-tare">-- MT</span>
+                            <span class="supp-time" id="kpi-imwb-tare-time">--</span>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Card 4: Net Difference -->
+            <article class="kpi-card" id="card-net-delta">
+                <div class="kpi-header">Net Difference</div>
+                <div class="kpi-body">
+                    <div class="primary-weight-display">
+                        <span class="weight-number" id="kpi-net-diff-mt" aria-live="polite">--</span>
+                        <span class="weight-unit">MT</span>
+                    </div>
+                    <div class="delta-sub-display">
+                        <span class="delta-pct-tag" id="kpi-net-diff-pct">-- %</span>
+                        <span class="delta-formula-label" id="kpi-net-diff-sub">Static Net - In-Motion Net</span>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <!-- Chart Section -->
+        <section class="panel-section chart-section">
+            <div class="section-toolbar">
+                <div class="section-title-wrap">
+                    <h2 class="panel-title">Net Difference (Torpedo-Wise)</h2>
+                    <span class="panel-subtitle">Complete matched trips • Static Net - In-Motion Net</span>
+                </div>
+                <div class="chart-selector-wrap" role="group" aria-label="Chart trip count">
+                    <span class="control-label">Plot:</span>
+                    <button type="button" class="btn-chip active" data-chart-count="10">Last 10</button>
+                    <button type="button" class="btn-chip" data-chart-count="20">Last 20</button>
+                    <button type="button" class="btn-chip" data-chart-count="50">Last 50</button>
+                    <button type="button" class="btn-chip" data-chart-count="100">Last 100</button>
+                    <button type="button" class="btn-chip" data-chart-count="all">All Torpedoes</button>
+					
+                </div>
+            </div>
+
+            <div id="chart-cap-notice" class="cap-banner is-hidden"></div>
+
+            <div class="chart-wrapper">
+                <div id="chart-container" class="svg-chart-container" role="img" aria-label="Bar chart showing net difference by torpedo"></div>
+                <div id="chart-empty-state" class="empty-state-card is-hidden">
+                    No complete matched trips available for charting in selected scope.
+                </div>
+            </div>
+        </section>
+
+        <!-- Detailed Table Section -->
+        <section class="panel-section table-section">
+            <div class="section-toolbar table-toolbar">
+                <div class="toolbar-left">
+                    <h2 class="panel-title">Operational Records</h2>
+                    <span id="table-record-count" class="badge">0 records</span>
+                </div>
+                <div class="toolbar-right">
+                    <div class="search-input-wrap">
+                        <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                        <input type="text" id="table-search-input" class="form-input" placeholder="Search Cast, Torpedo, Source..." aria-label="Search records">
+                    </div>
+                    <button type="button" id="btn-toggle-filters" class="btn btn-secondary">Column Filters <span class="filter-count is-hidden" aria-hidden="true">0</span></button>
+                    <div class="page-size-wrap">
+                        <label for="table-page-size">Show</label>
+                        <select id="table-page-size" class="form-select">
+                            <option value="10" selected>10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="all">All</option>
+                        </select>
+                    </div>
+                    <button type="button" id="btn-open-export" class="btn btn-primary">Export Data</button>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table class="data-table" id="weighment-table">
+                    <thead>
+                        <tr class="header-row">
+                            <th scope="col" aria-sort="none" data-col="BFCASTID" class="sortable">Cast ID</th>
+                            <th scope="col" aria-sort="none" data-col="TORPEDO_NO" class="sortable">Torpedo No.</th>
+                            <th scope="col" aria-sort="none" data-col="STATIC_SOURCE" class="sortable">Source</th>
+                            <th scope="col" aria-sort="none" data-col="STATIC_GROSS_WT" class="sortable num-col">Static Gross (MT)</th>
+                            <th scope="col" aria-sort="none" data-col="STATIC_TARE_WT" class="sortable num-col">Static Tare (MT)</th>
+                            <th scope="col" aria-sort="none" data-col="STATIC_NET_WT" class="sortable num-col">Static Net (MT)</th>
+                            <th scope="col" aria-sort="none" data-col="IMWB_GROSS_WT" class="sortable num-col">In-Motion Gross (MT)</th>
+                            <th scope="col" aria-sort="none" data-col="IMWB_TARE_WT" class="sortable num-col">In-Motion Tare (MT)</th>
+                            <th scope="col" aria-sort="none" data-col="IMWB_NET_WT" class="sortable num-col">In-Motion Net (MT)</th>
+                            <th scope="col" aria-sort="none" data-col="NET_WT_DIFFERENCE" class="sortable num-col">Net Difference (MT)</th>
+                            <th scope="col" aria-sort="none" data-col="STATIC_RECORD_TIME" class="sortable">Production Time</th>
+                            <th scope="col" aria-sort="none" data-col="MATCH_STATUS" class="sortable">Status</th>
+                        </tr>
+                        <tr class="filter-row" id="table-filter-row" class="filter-row is-hidden">
+                            <th><input type="text" class="col-filter" data-col="BFCASTID" placeholder="Filter..."></th>
+                            <th><input type="text" class="col-filter" data-col="TORPEDO_NO" placeholder="Filter..."></th>
+                            <th><input type="text" class="col-filter" data-col="STATIC_SOURCE" placeholder="Filter..."></th>
+                            <th><input type="text" class="col-filter" data-col="STATIC_GROSS_WT" placeholder=">10, =0..."></th>
+                            <th><input type="text" class="col-filter" data-col="STATIC_TARE_WT" placeholder=">10, =0..."></th>
+                            <th><input type="text" class="col-filter" data-col="STATIC_NET_WT" placeholder=">10, =0..."></th>
+                            <th><input type="text" class="col-filter" data-col="IMWB_GROSS_WT" placeholder=">10, =0..."></th>
+                            <th><input type="text" class="col-filter" data-col="IMWB_TARE_WT" placeholder=">10, =0..."></th>
+                            <th><input type="text" class="col-filter" data-col="IMWB_NET_WT" placeholder=">10, =0..."></th>
+                            <th><input type="text" class="col-filter" data-col="NET_WT_DIFFERENCE" placeholder=">0, <-5..."></th>
+                            <th><input type="text" class="col-filter" data-col="STATIC_RECORD_TIME" placeholder="Time..."></th>
+                            <th><input type="text" class="col-filter" data-col="MATCH_STATUS" placeholder="Status..."></th>
+                        </tr>
+                    </thead>
+                    <tbody id="weighment-table-body">
+                        <!-- Rendered dynamically -->
+                    </tbody>
+                </table>
+                <div id="table-empty-state" class="empty-state-card is-hidden">
+                    No records match current filters.
+                </div>
+            </div>
+
+					<div class="pagination-bar">
+			<span id="table-pagination-info" class="pagination-info">Showing 0 to 0 of 0</span>
+		<div class="pagination-controls">
+			<button type="button" id="btn-first-page" class="btn btn-secondary btn-sm" disabled>First</button>
+			<button type="button" id="btn-prev-page" class="btn btn-secondary btn-sm" disabled>Previous</button>
+			<span id="pagination-pages" class="page-numbers"></span>
+			<button type="button" id="btn-next-page" class="btn btn-secondary btn-sm" disabled>Next</button>
+			<button type="button" id="btn-last-page" class="btn btn-secondary btn-sm" disabled>Last</button>
+		</div>
+		</div>
+        </section>
+    </main>
+
+    <!-- Export Modal Dialog -->
+    <div id="export-modal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="export-modal-title">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h3 id="export-modal-title" class="modal-title">Export Weighment Data</h3>
+                <button type="button" id="btn-close-export" class="modal-close-btn" aria-label="Close Export Dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <label for="export-scope-select">Export Scope</label>
+                    <select id="export-scope-select" class="form-select">
+                        <option value="current_view">Current filtered view</option>
+                        <option value="current_day">Current production day</option>
+                        <option value="7_days">Last 7 days</option>
+                        <option value="14_days">Last 14 days</option>
+                        <option value="30_days">Last 30 days</option>
+                        <option value="custom">Custom date range</option>
+                        <option value="all">All available data</option>
+                    </select>
+                </div>
+
+                <div id="export-custom-range" class="form-row custom-dates-grid is-hidden">
+                    <div>
+                        <label for="export-from-date">From Date</label>
+                        <input type="date" id="export-from-date" class="form-input">
+                    </div>
+                    <div>
+                        <label for="export-to-date">To Date</label>
+                        <input type="date" id="export-to-date" class="form-input">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label for="export-area-select">Production Area</label>
+                    <select id="export-area-select" class="form-select">
+                        <option value="current">Current area</option>
+                        <option value="ALL">ALL</option>
+                        <option value="BF1">BF1</option>
+                        <option value="BF2">BF2</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <label for="export-format-select">Format</label>
+                    <select id="export-format-select" class="form-select">
+                        <option value="xlsx">Excel (.xlsx)</option>
+                        <option value="csv">CSV (.csv)</option>
+                    </select>
+                </div>
+
+                <div class="export-summary-box">
+                    <div class="summary-line"><span>Area:</span> <strong id="export-summary-area">--</strong></div>
+                    <div class="summary-line"><span>Range:</span> <strong id="export-summary-range">--</strong></div>
+                    <div class="summary-line"><span>Filters:</span> <strong id="export-summary-filters">--</strong></div>
+                    <div class="summary-line"><span>Estimated Rows:</span> <strong id="export-summary-rows">0</strong></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="btn-cancel-export" class="btn btn-secondary">Cancel</button>
+                <button type="button" id="btn-confirm-export" class="btn btn-primary">Export Excel</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="print-footer">Generated report · In-Motion Weighbridge · <span id="print-scope-label">Current selected scope</span></footer>
+    <script src="/static/app.js"></script>
+</body>
+</html>

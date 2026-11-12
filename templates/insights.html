@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weighbridge Insights | SMS Jindal Steel</title>
+    <script>
+        (function() {
+            var storedTheme = localStorage.getItem('imwb_theme');
+            var systemTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+            var theme = storedTheme || systemTheme || 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="operate-body">
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-left">
+            <span class="org-badge">SMS</span>
+            <h1 class="header-title">In-Motion Weighbridge Insights</h1>
+            <div class="status-indicator-bar">
+                <span class="pulse-dot" data-state="fresh" aria-hidden="true"></span>
+                <span class="status-text">Production Day Analytics</span>
+            </div>
+        </div>
+
+        <nav class="header-nav" aria-label="Main Navigation">
+            <a href="/" class="nav-tab" id="nav-dashboard-link">Dashboard</a>
+            <a href="/insights" class="nav-tab active" id="nav-insights-link">Insights</a>
+        </nav>
+
+        <div class="header-controls">
+            <div class="control-group">
+                <label for="insights-area-select">Area</label>
+                <select id="insights-area-select" class="form-select">
+                    <option value="ALL">ALL</option>
+                    <option value="BF1">BF1</option>
+                    <option value="BF2">BF2</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="insights-date-select">Production Date</label>
+                <div class="date-stepper"><button type="button" class="icon-btn" id="btn-prev-day" aria-label="Previous day">‹</button><input type="date" id="insights-date-select" class="form-input"><button type="button" class="icon-btn" id="btn-next-day" aria-label="Next day">›</button></div>
+            </div>
+
+            <button type="button" id="btn-print" class="btn btn-secondary" aria-label="Print Report">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg><span>Print</span>
+            </button>
+            <button type="button" id="btn-theme-toggle" class="btn btn-secondary" aria-label="Toggle Theme">
+                <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg><span class="visually-hidden">Theme</span>
+            </button>
+        </div>
+
+        <div class="header-branding">
+		<img src="/static/jspl_logo.png" alt="Jindal Steel" class="brand-logo">
+		<div class="brand-text">
+			<span class="subtext">Innovation for Excellence ©2026</span>
+			<span class="subtext-credit">Digital Transformation & Automation</span>
+		</div>
+	</div>
+    </header>
+
+    <main class="main-content">
+        <!-- Date Window Info Banner -->
+        <div class="date-window-banner">
+            <div class="window-title">Selected Production Window:</div>
+            <div id="insights-window-display" class="window-time">Loading window...</div>
+            <div class="window-note">(Shift C starts 22:00 D-1; Shift B ends 22:00 D IST)</div>
+        </div>
+
+        <!-- Shift Cards in strict order: C, A, B -->
+        <section class="shift-cards-grid" aria-label="Shift Summary Cards">
+            <!-- Shift C -->
+            <article class="shift-card" id="card-shift-c">
+                <div class="shift-card-header">
+                    <h3>Shift C</h3>
+                    <span class="shift-time-badge">22:00 D-1 → 06:00 D</span>
+                </div>
+                <div class="shift-metrics">
+                    <div class="metric-item"><span>Total Records:</span> <strong id="shift-c-records">0</strong></div>
+                    <div class="metric-item"><span>Complete Matched:</span> <strong id="shift-c-matched">0</strong></div>
+                    <div class="metric-item"><span>Static Net Total:</span> <strong id="shift-c-static-net">0.00 MT</strong></div>
+                    <div class="metric-item"><span>In-Motion Net Total:</span> <strong id="shift-c-imwb-net">0.00 MT</strong></div>
+                    <div class="metric-item highlight"><span>Total Signed Delta:</span> <strong id="shift-c-delta">0.00 MT</strong></div>
+                    <div class="metric-item"><span>Mean Delta:</span> <strong id="shift-c-mean">0.00 MT</strong></div>
+                </div>
+            </article>
+
+            <!-- Shift A -->
+            <article class="shift-card" id="card-shift-a">
+                <div class="shift-card-header">
+                    <h3>Shift A</h3>
+                    <span class="shift-time-badge">06:00 D → 14:00 D</span>
+                </div>
+                <div class="shift-metrics">
+                    <div class="metric-item"><span>Total Records:</span> <strong id="shift-a-records">0</strong></div>
+                    <div class="metric-item"><span>Complete Matched:</span> <strong id="shift-a-matched">0</strong></div>
+                    <div class="metric-item"><span>Static Net Total:</span> <strong id="shift-a-static-net">0.00 MT</strong></div>
+                    <div class="metric-item"><span>In-Motion Net Total:</span> <strong id="shift-a-imwb-net">0.00 MT</strong></div>
+                    <div class="metric-item highlight"><span>Total Signed Delta:</span> <strong id="shift-a-delta">0.00 MT</strong></div>
+                    <div class="metric-item"><span>Mean Delta:</span> <strong id="shift-a-mean">0.00 MT</strong></div>
+                </div>
+            </article>
+
+            <!-- Shift B -->
+            <article class="shift-card" id="card-shift-b">
+                <div class="shift-card-header">
+                    <h3>Shift B</h3>
+                    <span class="shift-time-badge">14:00 D → 22:00 D</span>
+                </div>
+                <div class="shift-metrics">
+                    <div class="metric-item"><span>Total Records:</span> <strong id="shift-b-records">0</strong></div>
+                    <div class="metric-item"><span>Complete Matched:</span> <strong id="shift-b-matched">0</strong></div>
+                    <div class="metric-item"><span>Static Net Total:</span> <strong id="shift-b-static-net">0.00 MT</strong></div>
+                    <div class="metric-item"><span>In-Motion Net Total:</span> <strong id="shift-b-imwb-net">0.00 MT</strong></div>
+                    <div class="metric-item highlight"><span>Total Signed Delta:</span> <strong id="shift-b-delta">0.00 MT</strong></div>
+                    <div class="metric-item"><span>Mean Delta:</span> <strong id="shift-b-mean">0.00 MT</strong></div>
+                </div>
+            </article>
+        </section>
+
+        <!-- 16 Statistical Metrics Grid -->
+        <section class="panel-section">
+            <h2 class="panel-title">Production Day Statistical Profile (Complete Matched Trips)</h2>
+            <div class="box-plot-wrap" aria-label="Daily delta distribution"><svg id="daily-box-plot" class="box-plot" viewBox="0 0 800 60" role="img" aria-label="Box plot of production day deltas"><line x1="40" y1="30" x2="760" y2="30" class="boxplot-axis"/><rect x="300" y="16" width="200" height="28" class="boxplot-box"/><line x1="400" y1="14" x2="400" y2="46" class="boxplot-median"/><line x1="180" y1="30" x2="300" y2="30" class="boxplot-whisker"/><line x1="500" y1="30" x2="620" y2="30" class="boxplot-whisker"/></svg></div>
+            <div class="stats-group-labels" aria-hidden="true"><span>Volume</span><span>Central tendency</span><span>Spread</span><span>Quality</span></div>
+            <div class="stats-profile-grid">
+                <div class="stat-box stat-volume">
+                    <span class="stat-name">Trip Count</span>
+                    <strong class="stat-number" id="stat-count">0</strong>
+                </div>
+                <div class="stat-box stat-volume">
+                    <span class="stat-name">Signed Mean</span>
+                    <strong class="stat-number" id="stat-mean">0.00 MT</strong>
+                </div>
+                <div class="stat-box stat-volume">
+                    <span class="stat-name">Median</span>
+                    <strong class="stat-number" id="stat-median">0.00 MT</strong>
+                </div>
+                <div class="stat-box stat-volume">
+                    <span class="stat-name">Mode <small>(repeated rounded delta)</small></span>
+                    <strong class="stat-number" id="stat-mode">0.00 MT</strong>
+                </div>
+                <div class="stat-box stat-central">
+                    <span class="stat-name">Standard Deviation</span>
+                    <strong class="stat-number" id="stat-stdev">0.00 MT</strong>
+                </div>
+                <div class="stat-box stat-central">
+                    <span class="stat-name">Q1 (25th Percentile)</span>
+                    <strong class="stat-number" id="stat-q1">0.00 MT</strong>
+                </div>
+                <div class="stat-box stat-central">
+                    <span class="stat-name">Q3 (75th Percentile)</span>
+                    <strong class="stat-number" id="stat-q3">0.00 MT</strong>
+                </div>
+                <div class="stat-box stat-spread">
+                    <span class="stat-name">IQR (Spread)</span>
+                    <strong class="stat-number" id="stat-iqr">0.00 MT</strong>
+                </div>
+                                <div class="stat-box stat-spread">
+                    <span class="stat-name">Q5 (5th Percentile)</span>
+                    <strong class="stat-number" id="stat-q5">0.00 MT</strong>
+                </div>
+                <div class="stat-box stat-spread">
+                    <span class="stat-name">Q95 (95th Percentile)</span>
+                    <strong class="stat-number" id="stat-q95">0.00 MT</strong>
+                </div>
+                <div class="stat-box stat-spread">
+                    <span class="stat-name">Minimum Delta</span>
+                    <strong class="stat-number" id="stat-min">0.00 MT</strong>
+                </div>
+                <div class="stat-box stat-spread">
+                    <span class="stat-name">Maximum Delta</span>
+                    <strong class="stat-number" id="stat-max">0.00 MT</strong>
+                </div>
+                <div class="stat-box stat-spread">
+                    <span class="stat-name">Outlier Count</span>
+                    <strong class="stat-number" id="stat-outlier-count">0</strong>
+                </div>
+                <div class="stat-box stat-spread">
+                    <span class="stat-name">Outlier Rate</span>
+                    <strong class="stat-number" id="stat-outlier-rate">0.0%</strong>
+                </div>
+                <div class="stat-box stat-spread">
+                    <span class="stat-name">Static Net Total</span>
+                    <strong class="stat-number" id="stat-static-net-total">0.00 MT</strong>
+                </div>
+                <div class="stat-box stat-quality">
+                    <span class="stat-name">In-Motion Net Total</span>
+                    <strong class="stat-number" id="stat-imwb-net-total">0.00 MT</strong>
+                </div>
+                <div class="stat-box stat-quality">
+                    <span class="stat-name">Total Signed Delta</span>
+                    <strong class="stat-number" id="stat-total-signed-delta">0.00 MT</strong>
+                </div>
+            </div>
+        </section>
+
+        <!-- Shift Statistical Pivot Table -->
+        <section class="panel-section">
+            <h2 class="panel-title">Shift Statistical Pivot</h2>
+            <div class="table-container">
+                <table class="data-table pivot-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Shift</th>
+                            <th scope="col" class="num-col">Trips</th>
+                            <th scope="col" class="num-col">Static Total (MT)</th>
+                            <th scope="col" class="num-col">IMWB Total (MT)</th>
+                            <th scope="col" class="num-col">Delta Total (MT)</th>
+                            <th scope="col" class="num-col">Mean (MT)</th>
+                            <th scope="col" class="num-col">Median (MT)</th>
+                            <th scope="col" class="num-col">Mode (MT)</th>
+                            <th scope="col" class="num-col">SD (MT)</th>
+                            <th scope="col" class="num-col">IQR (MT)</th>
+                            <th scope="col" class="num-col">Q5 (MT)</th>
+                            <th scope="col" class="num-col">Q95 (MT)</th>
+                            <th scope="col" class="num-col">Outlier %</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pivot-table-body">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Operational Interpretation -->
+        <section class="panel-section interpretation-section">
+            <h2 class="panel-title">Operational Interpretation</h2>
+            <div id="interpretation-box" class="interpretation-card">
+                <ul id="interpretation-list" class="interpretation-bullet-list">
+                    <li>Evaluating production data...</li>
+                </ul>
+            </div>
+        </section>
+    </main>
+
+    <footer class="print-footer">Generated report · In-Motion Weighbridge Insights · <span id="print-scope-label">Selected production day</span></footer>
+    <script src="/static/app.js"></script>
+    <script>
+      (function () {
+        var dateInput = document.getElementById('insights-date-select');
+        function stepDay(delta) {
+          if (!dateInput || !dateInput.value) return;
+          var d = new Date(dateInput.value + 'T12:00:00');
+          d.setDate(d.getDate() + delta);
+          dateInput.value = d.toISOString().slice(0, 10);
+          dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        document.getElementById('btn-prev-day')?.addEventListener('click', function () { stepDay(-1); });
+        document.getElementById('btn-next-day')?.addEventListener('click', function () { stepDay(1); });
+      })();
+    </script>
+</body>
+</html>
