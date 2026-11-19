@@ -424,7 +424,7 @@ def generate_operational_interpretation(stats):
 # Web Routes
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("pulse.html", tolerance=float(os.environ.get("DELTA_TOLERANCE_MT", "1.0")))
 
 
 @app.route("/insights")

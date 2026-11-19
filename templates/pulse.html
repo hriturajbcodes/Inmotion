@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>In-Motion Weighbridge | SMS Jindal Steel</title>
+<script>
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem('imwb_theme'); } catch (e) {}
+    document.documentElement.setAttribute('data-theme', t || 'dark');
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='pulse.css') }}">
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-in">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M3 15h8" stroke="#8db3ff"/><path d="M13 9h8" stroke="#ff8a4c"/><path d="M3 9h5M16 15h5" stroke="currentColor" opacity=".35"/></svg>
+      </div>
+      <div>
+        <h1>Weighbridge Pulse</h1>
+        <div class="live"><span class="dot" id="dot"></span><span id="liveTxt">Connecting…</span></div>
+      </div>
+    </div>
+    <div class="seg" id="areaSeg" role="group" aria-label="Area">
+      <button data-v="ALL" class="on">All</button><button data-v="BF1">BF1</button><button data-v="BF2">BF2</button>
+    </div>
+    <div class="stepper" role="group" aria-label="Production day">
+      <button id="prev" aria-label="Previous day">‹</button>
+      <input type="date" id="date" aria-label="Production date">
+      <button id="next" aria-label="Next day">›</button>
+    </div>
+    <label class="tolbox" title="Acceptable difference (± MT)">±<input id="tolInput" type="number" min="0.1" step="0.1" value="1.0" aria-label="Tolerance in MT">MT</label>
+    <a class="icon navlink" href="/insights" title="Insights" aria-label="Insights"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></a>
+    <button class="icon" id="theme" aria-label="Toggle theme" title="Toggle theme (T)">
+      <svg viewBox="0 0 24 24"><path id="themePath" d=""/></svg>
+    </button>
+    <div class="credit">
+      <div class="logo-badge"><img alt="Jindal Steel" src="{{ url_for('static', filename='jspl_logo.png') }}"></div>
+      <div class="credit-txt">
+        <span class="c1">Innovation for Excellence &copy;2026</span>
+        <span class="c2">Designed and developed by</span>
+        <span class="c2">Digital Transformation &amp; Automation</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- Production day / shift rail -->
+  <section class="card rail" aria-label="Production day timeline">
+    <div class="rail-top">
+      <div><strong id="railTitle">Production day</strong> <span id="railWin"></span></div>
+      <div class="legend"><span><i style="background:var(--ok)"></i>Within tolerance</span><span><i style="background:var(--bad)"></i>Outside ±<span id="tolTxt1">1.0</span> MT</span><span><i style="background:transparent;border:1.5px solid var(--faint)"></i>Incomplete</span></div>
+    </div>
+    <div class="track" id="track"></div>
+  </section>
+
+  <!-- Verdict + latest trip -->
+  <section class="hero">
+    <article class="card pad verdict" id="verdict">
+      <div class="eyebrow">Is in-motion trustworthy?</div>
+      <div style="margin-top:12px"><span class="chip" id="vChip"><i></i><span id="vChipTxt">—</span></span></div>
+      <h3 id="vTitle">—</h3>
+      <p class="read" id="vRead"></p>
+      <div class="gauge" id="gaugeWrap"></div>
+      <div class="stats4">
+        <div class="stat"><div class="eyebrow">Bias</div><div class="v" id="sBias">—</div></div>
+        <div class="stat"><div class="eyebrow">Spread (SD)</div><div class="v" id="sSd">—</div></div>
+        <div class="stat"><div class="eyebrow">In tolerance</div><div class="v" id="sTol">—</div></div>
+        <div class="stat"><div class="eyebrow">Trips</div><div class="v" id="sN">—</div></div>
+      </div>
+    </article>
+
+    <article class="card pad ticket" id="ticket">
+      <div class="ticket-head">
+        <div class="tid"><span class="eyebrow">Latest complete trip</span></div>
+        <div class="tid"><span class="big" id="tTorp">—</span><span class="meta" id="tMeta"></span></div>
+      </div>
+      <div class="vs">
+        <div class="side s">
+          <div class="lab"><span>Static weighbridge</span><span class="mono" id="tSrc"></span></div>
+          <div class="net" id="tSNet">—</div>
+          <div class="gt"><div>Gross<b id="tSG">—</b></div><div>Tare<b id="tST">—</b></div></div>
+        </div>
+        <div class="delta-mid">
+          <span class="arrow">STATIC − IMWB</span>
+          <div class="d" id="tD">—</div>
+          <span class="p" id="tP">—</span>
+        </div>
+        <div class="side i">
+          <div class="lab"><span>In-motion weighbridge</span><span class="mono" id="tTime"></span></div>
+          <div class="net" id="tINet">—</div>
+          <div class="gt"><div>Gross<b id="tIG">—</b></div><div>Tare<b id="tIT">—</b></div></div>
+        </div>
+      </div>
+      <div class="recent"><div class="eyebrow" style="margin-bottom:8px">Previous trips</div><div class="chips" id="recent"></div></div>
+    </article>
+  </section>
+
+  <!-- Charts -->
+  <section class="charts">
+    <article class="card pad">
+      <div class="head"><h2>Delta stream</h2><div class="legend" id="legStream"></div></div>
+      <div class="plot" id="stream"></div>
+    </article>
+    <article class="card pad">
+      <div class="head"><h2>Agreement plot</h2><span class="sub">Bias and 95% limits across load size</span></div>
+      <div class="plot" id="ba"></div>
+    </article>
+  </section>
+
+  <!-- Shift lanes -->
+  <section class="lanes" id="lanes" aria-label="Shift summaries"></section>
+
+  <!-- Ledger -->
+  <section class="card pad" aria-label="Trip ledger">
+    <div class="head"><h2>Trip ledger</h2><span class="sub" id="ledgerCount"></span></div>
+    <div class="tools">
+      <div class="seg" id="fSeg" role="group" aria-label="Filter">
+        <button data-v="all" class="on">All</button><button data-v="matched">Matched</button><button data-v="out">Outside tolerance</button><button data-v="inc">Incomplete</button>
+      </div>
+      <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="Search cast, torpedo, source" aria-label="Search trips"><kbd>/</kbd></div>
+      <span class="grow"></span>
+      <button class="btn pri" id="export">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>Export CSV
+      </button>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="empty hidden" id="empty">No trips match this view.</div>
+    <div class="foot"><span id="foot"></span><button class="btn" id="more">Show more</button></div>
+  </section>
+</main>
+
+<div id="tip" class="tip hidden"></div>
+<div id="layer"></div>
+
+<script>window.PULSE = { tolerance: {{ tolerance|default(1.0) }} };</script>
+<script src="{{ url_for('static', filename='pulse.js') }}"></script>
+</body>
+</html>
