@@ -5,10 +5,32 @@ Generates styled multi-sheet Excel (.xlsx) and CSV reports.
 
 import io
 import csv
+import math
 import datetime
 import openpyxl
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+
+
+def _clean(val):
+    """Make a value safe for an Excel cell: Excel rejects control characters, holds at
+    most 32,767 characters per cell and cannot store NaN/Infinity (those become empty).
+    Anything that is not plain text or a number is written as text."""
+    if isinstance(val, float):
+        return val if math.isfinite(val) else None
+    if val is None or isinstance(val, (int, bool)):
+        return val
+    return ILLEGAL_CHARACTERS_RE.sub("", str(val))[:32767]
+
+
+def _fmt2(val):
+    """Two-decimal text for the CSV; anything that is not a usable number becomes empty."""
+    try:
+        f = float(val)
+    except (TypeError, ValueError):
+        return ""
+    return f"{f:.2f}" if math.isfinite(f) else ""
 
 
 def generate_excel_report(records, stats, metadata):
@@ -49,7 +71,7 @@ def generate_excel_report(records, stats, metadata):
     area = metadata.get("area", "ALL")
     date_range = metadata.get("date_range", "All Data")
     filter_desc = metadata.get("filters", "None")
-    ws_records["A3"] = (
+    ws_records["A3"] = _clean(
         f"Generated: {gen_time} | Production Area: {area} | "
         f"Date Range: {date_range} | Active Filters: {filter_desc}"
     )
@@ -103,6 +125,7 @@ def generate_excel_report(records, stats, metadata):
         ]
 
         for col_idx, (val, align, font, fill, num_fmt) in enumerate(values, 1):
+            val = _clean(val)
             cell = ws_records.cell(row=current_row, column=col_idx)
             cell.alignment = Alignment(horizontal=align, vertical="center")
             cell.font = font
@@ -137,7 +160,7 @@ def generate_excel_report(records, stats, metadata):
     ws_summary["A1"].font = title_font
     ws_summary["A2"] = "Weighment Statistical Summary"
     ws_summary["A2"].font = subtitle_font
-    ws_summary["A3"] = f"Evaluation Window: {date_range} | Production Area: {area}"
+    ws_summary["A3"] = _clean(f"Evaluation Window: {date_range} | Production Area: {area}")
     ws_summary["A3"].font = meta_font
 
     sum_headers = ["Metric", "Value", "Unit / Operational Context"]
@@ -211,14 +234,14 @@ def generate_csv_report(records):
             r.get("BFCASTID") or "",
             r.get("TORPEDO_NO") or "",
             r.get("STATIC_SOURCE") or "",
-            f"{r.get('STATIC_GROSS_WT'):.2f}" if r.get("STATIC_GROSS_WT") is not None else "",
-            f"{r.get('STATIC_TARE_WT'):.2f}" if r.get("STATIC_TARE_WT") is not None else "",
-            f"{r.get('STATIC_NET_WT'):.2f}" if r.get("STATIC_NET_WT") is not None else "",
-            f"{r.get('IMWB_GROSS_WT'):.2f}" if r.get("IMWB_GROSS_WT") is not None else "",
-            f"{r.get('IMWB_TARE_WT'):.2f}" if r.get("IMWB_TARE_WT") is not None else "",
-            f"{r.get('IMWB_NET_WT'):.2f}" if r.get("IMWB_NET_WT") is not None else "",
-            f"{r.get('NET_WT_DIFFERENCE'):.2f}" if r.get("NET_WT_DIFFERENCE") is not None else "",
-            f"{r.get('NET_WT_DIFFERENCE_PCT'):.2f}" if r.get("NET_WT_DIFFERENCE_PCT") is not None else "",
+            _fmt2(r.get("STATIC_GROSS_WT")),
+            _fmt2(r.get("STATIC_TARE_WT")),
+            _fmt2(r.get("STATIC_NET_WT")),
+            _fmt2(r.get("IMWB_GROSS_WT")),
+            _fmt2(r.get("IMWB_TARE_WT")),
+            _fmt2(r.get("IMWB_NET_WT")),
+            _fmt2(r.get("NET_WT_DIFFERENCE")),
+            _fmt2(r.get("NET_WT_DIFFERENCE_PCT")),
             r.get("STATIC_RECORD_TIME") or "",
             r.get("MATCH_STATUS") or "",
         ])

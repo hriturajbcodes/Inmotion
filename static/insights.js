@@ -222,7 +222,7 @@
         S.all = (j.rows || []).map(WP.mapRow).filter(function (r) { return !isNaN(r.t); });
         WP.setLive(true, 'Live · updated ' + WP.hhmm(WP.plantNow()) + ' IST');
         renderAll();
-      }).catch(function () { WP.setLive(false, 'Cannot reach server'); });
+      }).catch(function (e) { WP.setLive(false, e && e.status === 503 ? 'Database unavailable' : 'Cannot reach server'); });
       WP.getJSON('/api/insights?area=ALL').then(renderInterp).catch(function () { renderInterp(null); });
     }
     load(); setInterval(load, 30000);

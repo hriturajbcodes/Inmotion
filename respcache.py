@@ -12,8 +12,11 @@ wraps a Flask view that returns JSON and:
   * answers "304 Not Modified" with no body when the browser already has the
     current version (ETag).
 
-Only successful (200) answers are cached. Entries are capped, so unusual query
-strings cannot grow memory without limit.
+Only successful (200) answers are cached, plus a 503 "database unavailable"
+answer, which is held for the same short time so that a database outage does
+not make every waiting browser retry a slow connection in turn. Other errors are
+never cached. Entries are capped, so unusual query strings cannot grow memory
+without limit.
 """
 import gzip
 import hashlib
@@ -57,6 +60,10 @@ def _put(key, entry):
 
 
 def _respond(e):
+    if e.get("status", 200) != 200:
+        # a remembered "database unavailable" answer: never gzip/ETag it, never let a browser keep it
+        return Response(e["body"], status=e["status"], mimetype=e["mime"],
+                        headers={"Cache-Control": "no-store", "Retry-After": "5"})
     etag = e["etag"]
     headers = {"ETag": etag, "Cache-Control": "no-cache", "Vary": "Accept-Encoding"}
     if request.headers.get("If-None-Match") == etag:
@@ -82,14 +89,24 @@ def cached_view(fn):
                 e = _store.get(key)                       # someone may have rebuilt it while we waited
                 if e is None or time.monotonic() - e["t"] >= ttl:
                     resp = make_response(fn(*args, **kwargs))
-                    if resp.status_code != 200:
+                    if resp.status_code == 503:
+                        # "database unavailable": hold it for the same few seconds so the browsers
+                        # waiting on this lock get the answer at once instead of each retrying a
+                        # slow connection one after another (which would stall every thread).
+                        e = {"t": time.monotonic(), "body": resp.get_data(),
+                             "mime": resp.mimetype or "application/json",
+                             "status": 503, "etag": None, "gz": None}
+                        _put(key, e)
+                        outcome = "miss"
+                    elif resp.status_code != 200:
                         return resp
-                    body = resp.get_data()
-                    e = {"t": time.monotonic(), "body": body, "mime": resp.mimetype or "application/json",
-                         "etag": '"%s"' % hashlib.sha1(body).hexdigest()[:20],
-                         "gz": gzip.compress(body, 5) if len(body) > 1024 else None}
-                    _put(key, e)
-                    outcome = "miss"
+                    else:
+                        body = resp.get_data()
+                        e = {"t": time.monotonic(), "body": body, "mime": resp.mimetype or "application/json",
+                             "etag": '"%s"' % hashlib.sha1(body).hexdigest()[:20],
+                             "gz": gzip.compress(body, 5) if len(body) > 1024 else None}
+                        _put(key, e)
+                        outcome = "miss"
         g._cache_outcome = outcome
         return _respond(e)
     return wrapper

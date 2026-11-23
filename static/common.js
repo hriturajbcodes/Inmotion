@@ -136,7 +136,7 @@
     var to = setTimeout(function () { if (ctl) ctl.abort(); }, 20000);
     return fetch(url, { cache: 'no-cache', signal: ctl ? ctl.signal : undefined }).then(function (res) {
       clearTimeout(to);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) { var err = new Error('HTTP ' + res.status); err.status = res.status; throw err; }
       return res.json();
     }, function (e) { clearTimeout(to); throw e; });
   };

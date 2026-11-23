@@ -106,7 +106,8 @@
       ['Typical response', ms(l.p50)], ['Slowest 5%', ms(l.p95)], ['Slowest', ms(l.max)], ['Requests (5 min)', l.n],
       ['Served from cache', c.hit_pct == null ? '—' : c.hit_pct + '%'], ['Errors (5 min)', l.errors],
       ['Worker threads', d.worker_threads || 'unknown'], ['Data source', d.data_source],
-      ['Cache lifetime', d.cache_ttl_s > 0 ? d.cache_ttl_s + ' s' : 'off'], ['Peak at once', d.inflight_peak]
+      ['Cache lifetime', d.cache_ttl_s > 0 ? d.cache_ttl_s + ' s' : 'off'], ['Peak at once', d.inflight_peak],
+      ['Last database error', d.db_error ? String(d.db_error).slice(0, 160) : 'none']
     ];
     $('adCap').innerHTML = cells.map(function (x) { return '<div class="stat"><div class="t">' + x[0] + '</div><div class="v">' + esc(x[1]) + '</div></div>'; }).join('');
 

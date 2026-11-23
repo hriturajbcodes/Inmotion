@@ -92,6 +92,7 @@
     WP.getJSON('/api/dashboard?days=all&area=' + encodeURIComponent(S.area)).then(function (j) {
       S.rows = (j.rows || []).map(WP.mapRow).filter(function (r) { return r.ok && !isNaN(r.t); }).sort(function (a, b) { return b.t - a.t; });
       lastOk = Date.now();
+      S.dbDown = false;
       WP.setLive(true, 'Live · updated ' + WP.hhmm(WP.plantNow()) + ' IST');
       if (S.first) {
         S.first = false;
@@ -104,9 +105,12 @@
       }
       setBounds();
       renderAll();
-    }).catch(function () {
-      WP.setLive(false, lastOk ? 'Connection lost · showing data from ' + WP.hhmm(WP.plantNow() - (Date.now() - lastOk)) + ' IST' : 'Cannot reach server');
-      if (!lastOk) renderAll();
+    }).catch(function (e) {
+      var since = lastOk ? ' · showing data from ' + WP.hhmm(WP.plantNow() - (Date.now() - lastOk)) + ' IST' : '';
+      /* 503 = the server is up but the plant database cannot be read */
+      S.dbDown = !!(e && e.status === 503);
+      WP.setLive(false, S.dbDown ? 'Database unavailable' + since : (lastOk ? 'Connection lost' + since : 'Cannot reach server'));
+      if (!lastOk) renderAll(); else renderPeriod();
     }).then(function () { inflight = false; });
   }
 
@@ -524,7 +528,8 @@
   function renderPeriod() {
     var n = inRange(S.rows, resolve(S.d)).length;
     $('dNow').textContent = describe(S.d) + ' · ' + n + ' complete trip' + (n === 1 ? '' : 's');
-    $('dNote').textContent = S.d.note || ''; $('dNote').hidden = !S.d.note;
+    var note = S.dbDown ? 'The plant database is unavailable. The figures below may be missing or out of date.' : S.d.note;
+    $('dNote').textContent = note || ''; $('dNote').hidden = !note;
   }
   function renderAll() { renderPeriod(); renderCards(); renderSummary(); renderChart(); renderTable(); }
 

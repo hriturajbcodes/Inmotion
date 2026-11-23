@@ -10,6 +10,7 @@ import math
 import logging
 import datetime
 import statistics
+from functools import wraps
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -52,12 +53,27 @@ try:
     PYODBC_AVAILABLE = True
 except ImportError:
     PYODBC_AVAILABLE = False
-    logger.warning("pyodbc is not installed. Application will run in simulated demo data mode.")
+    logger.warning("pyodbc is not installed. Live database access is unavailable "
+                   "(simulated demo data is used only while IMWB_SERVER is empty).")
+
+
+class DataSourceError(Exception):
+    """The live database is configured but could not be read.
+
+    Raised instead of quietly showing simulated numbers: when the plant database
+    is down the dashboard must say "unavailable", never show made-up weighments
+    as if they were real.
+    """
+
+
+LAST_DB_ERROR = None   # text of the latest database failure; None while healthy
 
 
 def get_db_connection():
-    if not PYODBC_AVAILABLE or not IMWB_SERVER:
-        return None
+    if not IMWB_SERVER:
+        return None                      # no database configured: simulated demo data
+    if not PYODBC_AVAILABLE:
+        raise DataSourceError("IMWB_SERVER is set but the pyodbc package is not installed")
     conn_str = (
         f"DRIVER={{{ODBC_DRIVER}}};"
         f"SERVER={IMWB_SERVER};"
@@ -103,14 +119,22 @@ def get_production_window_bounds(prod_date):
 
 
 # Complete Matched Trip Definition (Section 8)
+def _is_num(v):
+    """A real, finite number (not None, not text, not NaN/Infinity)."""
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
 def is_complete_matched(r):
-    if r.get("MATCH_STATUS") != "MATCHED":
+    # A row only counts when every figure the statistics need is a usable number,
+    # so one damaged row can never break the Insights page or the exports.
+    if not isinstance(r, dict) or r.get("MATCH_STATUS") != "MATCHED":
         return False
     required_fields = [
         "STATIC_GROSS_WT", "STATIC_TARE_WT", "STATIC_NET_WT",
-        "IMWB_GROSS_WT", "IMWB_TARE_WT", "IMWB_NET_WT"
+        "IMWB_GROSS_WT", "IMWB_TARE_WT", "IMWB_NET_WT",
+        "NET_WT_DIFFERENCE"
     ]
-    return all(r.get(f) is not None for f in required_fields)
+    return all(_is_num(r.get(f)) for f in required_fields)
 
 
 # Format helper for JSON
@@ -118,8 +142,29 @@ def serialize_val(val):
     if isinstance(val, (datetime.datetime, datetime.date)):
         return val.strftime("%Y-%m-%d %H:%M:%S") if isinstance(val, datetime.datetime) else val.isoformat()
     if isinstance(val, Decimal):
-        return float(val)
+        val = float(val)
+    if isinstance(val, float) and not math.isfinite(val):
+        return None            # NaN / Infinity are not valid JSON
     return val
+
+
+def _days_to_int(days):
+    """'all' or junk -> None (no date filter); otherwise whole days kept in a safe range."""
+    if not days or days == "all":
+        return None
+    try:
+        return max(0, min(int(days), 36500))
+    except (TypeError, ValueError):
+        return None
+
+
+def _in_window(r, start, end):
+    """True if the row's STATIC_RECORD_TIME falls in [start, end); unreadable times never match."""
+    try:
+        t = datetime.datetime.fromisoformat(r["STATIC_RECORD_TIME"]).replace(tzinfo=PLANT_TZ)
+    except (KeyError, TypeError, ValueError):
+        return False
+    return start <= t < end
 
 
 # Simulated Data Generator for Offline / Local Verification
@@ -199,7 +244,14 @@ def generate_sample_dataset():
 
 
 def fetch_dashboard_rows(area=None, days=None, limit=None):
-    """Queries dbo.dashboard or falls back to simulation data."""
+    """Queries dbo.dashboard.
+
+    Simulated demo data is used ONLY when no database is configured (IMWB_SERVER
+    empty). If a configured database cannot be read, DataSourceError is raised so
+    the pages report "unavailable" instead of showing made-up numbers.
+    """
+    global LAST_DB_ERROR
+    d_int = _days_to_int(days)
     conn = None
     try:
         conn = get_db_connection()
@@ -210,13 +262,9 @@ def fetch_dashboard_rows(area=None, days=None, limit=None):
             if area and area.upper() in ("BF1", "BF2"):
                 query += " AND STATIC_SOURCE = ?"
                 params.append(area.upper())
-            if days and days != "all":
-                try:
-                    d_int = int(days)
-                    query += " AND STATIC_RECORD_TIME >= DATEADD(day, -?, GETDATE())"
-                    params.append(d_int)
-                except ValueError:
-                    pass
+            if d_int is not None:
+                query += " AND STATIC_RECORD_TIME >= DATEADD(day, -?, GETDATE())"
+                params.append(d_int)
             query += " ORDER BY STATIC_RECORD_TIME DESC, STATIC_SOURCE_ID DESC"
             cursor.execute(query, params)
             columns = [column[0] for column in cursor.description]
@@ -229,9 +277,16 @@ def fetch_dashboard_rows(area=None, days=None, limit=None):
                 for idx, col in enumerate(columns):
                     r_dict[col] = serialize_val(row[idx])
                 results.append(r_dict)
+            LAST_DB_ERROR = None
             return results
+    except DataSourceError as e:
+        LAST_DB_ERROR = str(e)
+        logger.error(f"Database not usable: {e}")
+        raise
     except Exception as e:
+        LAST_DB_ERROR = f"{type(e).__name__}: {e}"
         logger.error(f"Database query failed: {e}")
+        raise DataSourceError("database_unavailable") from e
     finally:
         if conn:
             try:
@@ -239,20 +294,16 @@ def fetch_dashboard_rows(area=None, days=None, limit=None):
             except Exception:
                 pass
 
-    # Fallback to deterministic sample dataset
+    # No database configured: deterministic sample dataset (demo / offline mode)
     data = generate_sample_dataset()
     if area and area.upper() in ("BF1", "BF2"):
         data = [r for r in data if r["STATIC_SOURCE"] == area.upper()]
-    if days and days != "all":
-        try:
-            d_int = int(days)
-            cutoff = datetime.datetime.now(PLANT_TZ) - datetime.timedelta(days=d_int)
-            data = [
-                r for r in data
-                if datetime.datetime.fromisoformat(r["STATIC_RECORD_TIME"]).replace(tzinfo=PLANT_TZ) >= cutoff
-            ]
-        except Exception:
-            pass
+    if d_int is not None:
+        cutoff = datetime.datetime.now(PLANT_TZ) - datetime.timedelta(days=d_int)
+        data = [
+            r for r in data
+            if datetime.datetime.fromisoformat(r["STATIC_RECORD_TIME"]).replace(tzinfo=PLANT_TZ) >= cutoff
+        ]
     if limit:
         data = data[:limit]
     return data
@@ -468,8 +519,43 @@ def healthz():
                 pass
 
 
+def _db_unavailable_response():
+    resp = jsonify({
+        "status": "error",
+        "error": "database_unavailable",
+        "message": "The plant database could not be read. Figures on screen may be out of date.",
+    })
+    resp.status_code = 503
+    resp.headers["Retry-After"] = "5"
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.errorhandler(DataSourceError)
+def handle_data_source_error(e):
+    return _db_unavailable_response()
+
+
+def db_guard(fn):
+    """Turn a database failure into a clean 503 response (which respcache holds for a
+    few seconds, so a crowd of waiting browsers does not each retry a slow connection)."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except DataSourceError:
+            return _db_unavailable_response()
+    return wrapper
+
+
+@app.route("/favicon.ico")
+def favicon():
+    return "", 204
+
+
 @app.route("/api/dashboard")
 @cached_view
+@db_guard
 def api_dashboard():
     area = request.args.get("area", "ALL")
     days = request.args.get("days", "7")
@@ -528,6 +614,7 @@ def api_dashboard():
 
 @app.route("/api/insights")
 @cached_view
+@db_guard
 def api_insights():
     area = request.args.get("area", "ALL")
     date_param = request.args.get("production_date")
@@ -541,7 +628,11 @@ def api_insights():
     else:
         prod_date, _ = get_production_date_and_shift(now)
 
-    start_window, end_window = get_production_window_bounds(prod_date)
+    try:
+        start_window, end_window = get_production_window_bounds(prod_date)
+    except OverflowError:                 # e.g. production_date=0001-01-01
+        prod_date, _ = get_production_date_and_shift(now)
+        start_window, end_window = get_production_window_bounds(prod_date)
 
     all_rows = fetch_dashboard_rows(area=area, days="all")
     day_rows = []
@@ -613,23 +704,32 @@ def api_insights():
 
 @app.route("/api/export", methods=["POST"])
 def api_export():
-    payload = request.get_json(silent=True) or {}
-    scope = payload.get("scope", "current_view")
-    area = payload.get("area", "ALL")
-    fmt = payload.get("format", "xlsx").lower()
+    def bad_request(code, message):
+        return jsonify({"status": "error", "error": code, "message": message}), 400
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        payload = {}
+    scope = payload.get("scope")
+    scope = scope if isinstance(scope, str) else "current_view"
+    area = payload.get("area")
+    area = area if isinstance(area, str) else "ALL"
+    fmt = payload.get("format") or "xlsx"
+    fmt = fmt.lower() if isinstance(fmt, str) else ""
+    if fmt not in ("xlsx", "csv"):
+        return bad_request("unsupported_format", "format must be 'xlsx' or 'csv'")
     custom_from = payload.get("from_date")
     custom_to = payload.get("to_date")
-    active_filters = payload.get("filters", {})
+    active_filters = payload.get("filters")
+    if not isinstance(active_filters, dict):
+        active_filters = {}
 
     now = datetime.datetime.now(PLANT_TZ)
     if scope == "current_day":
         prod_date, _ = get_production_date_and_shift(now)
         start_w, end_w = get_production_window_bounds(prod_date)
         raw_rows = fetch_dashboard_rows(area=area, days="all")
-        rows = [
-            r for r in raw_rows
-            if start_w <= datetime.datetime.fromisoformat(r["STATIC_RECORD_TIME"]).replace(tzinfo=PLANT_TZ) < end_w
-        ]
+        rows = [r for r in raw_rows if _in_window(r, start_w, end_w)]
         date_desc = f"Production Day {prod_date.isoformat()}"
     elif scope == "7_days":
         rows = fetch_dashboard_rows(area=area, days="7")
@@ -641,19 +741,27 @@ def api_export():
         rows = fetch_dashboard_rows(area=area, days="30")
         date_desc = "Last 30 Days"
     elif scope == "custom" and custom_from and custom_to:
-        f_dt = datetime.datetime.fromisoformat(custom_from).replace(tzinfo=PLANT_TZ)
-        t_dt = (datetime.datetime.fromisoformat(custom_to) + datetime.timedelta(days=1)).replace(tzinfo=PLANT_TZ)
+        try:
+            f_day = datetime.datetime.fromisoformat(custom_from).date()
+            t_day = datetime.datetime.fromisoformat(custom_to).date()
+            f_dt = datetime.datetime(f_day.year, f_day.month, f_day.day, tzinfo=PLANT_TZ)
+            t_dt = datetime.datetime(t_day.year, t_day.month, t_day.day, tzinfo=PLANT_TZ) + datetime.timedelta(days=1)
+        except (TypeError, ValueError, OverflowError):
+            return bad_request("invalid_date", "from_date and to_date must be dates like 2026-11-23")
         raw_rows = fetch_dashboard_rows(area=area, days="all")
-        rows = [
-            r for r in raw_rows
-            if f_dt <= datetime.datetime.fromisoformat(r["STATIC_RECORD_TIME"]).replace(tzinfo=PLANT_TZ) < t_dt
-        ]
+        rows = [r for r in raw_rows if _in_window(r, f_dt, t_dt)]
         date_desc = f"{custom_from} to {custom_to}"
     elif scope == "all":
         rows = fetch_dashboard_rows(area=area, days="all")
         date_desc = "All Available History"
     else:  # current_view
-        rows = payload.get("visible_rows") or fetch_dashboard_rows(area=area, days="7")
+        visible = payload.get("visible_rows")
+        if visible is None or visible == []:
+            rows = fetch_dashboard_rows(area=area, days="7")
+        elif isinstance(visible, list) and all(isinstance(r, dict) for r in visible):
+            rows = visible
+        else:
+            return bad_request("invalid_rows", "visible_rows must be a list of row objects")
         date_desc = "Current Filtered Table View"
 
     # Filter application
@@ -713,9 +821,10 @@ def _admin_info():
         ttl = float(os.environ.get("RESPONSE_CACHE_TTL_SECONDS", "4"))
     except ValueError:
         ttl = 4.0
-    live = bool(PYODBC_AVAILABLE and IMWB_SERVER)
+    live = bool(IMWB_SERVER)
     return {"worker_threads": threads, "cache_ttl_s": ttl,
-            "data_source": "Live database" if live else "Simulated data"}
+            "data_source": "Live database" if live else "Simulated data",
+            "db_error": LAST_DB_ERROR}
 
 
 # Who is using the site (admin page) and the shared-answer cache
@@ -724,5 +833,9 @@ init_admin(app, page_config, _admin_info)
 
 
 if __name__ == "__main__":
+    # Development only. For real use run:  python serve.py   (waitress).
+    # The Flask debugger is OFF unless FLASK_DEBUG=1 is set on purpose, because it
+    # must never be reachable from the plant network.
     port = int(os.environ.get("PORT", 5002))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
+    app.run(host=os.environ.get("HOST", "0.0.0.0"), port=port, debug=debug)
