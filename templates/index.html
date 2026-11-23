@@ -1,342 +1,193 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>In-Motion Weighbridge Dashboard | SMS Jindal Steel</title>
-    <!-- Prevent theme flash -->
-    <script>
-        (function() {
-            var storedTheme = localStorage.getItem('imwb_theme');
-            var systemTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-            var theme = storedTheme || systemTheme || 'dark';
-            document.documentElement.setAttribute('data-theme', theme);
-        })();
-    </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/styles.css">
-</head>
-<body class="operate-body">
-    <!-- Header -->
-    <header class="app-header">
-        <div class="header-left">
-            <span class="org-badge">SMS</span>
-            <h1 class="header-title">In-Motion Weighbridge Dashboard</h1>
-            <div class="status-indicator-bar">
-                <span class="pulse-dot" id="db-status-dot" data-state="fresh" aria-hidden="true"></span>
-                <span id="header-data-current" class="status-text" aria-live="polite">Data current to --</span>
-            </div>
-        </div>
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
 
-        <nav class="header-nav" aria-label="Main Navigation">
-            <a href="/" class="nav-tab active" id="nav-dashboard-link">Dashboard</a>
-            <a href="/insights" class="nav-tab" id="nav-insights-link">Insights</a>
-        </nav>
+{% block bar_tools %}
+<div class="seg" id="areaSeg" role="group" aria-label="Area">
+  <button type="button" data-v="ALL" aria-pressed="true">All</button>
+  <button type="button" data-v="BF1" aria-pressed="false">BF1</button>
+  <button type="button" data-v="BF2" aria-pressed="false">BF2</button>
+</div>
+{% endblock %}
 
-        <div class="header-controls">
-            <div class="control-group">
-                <label for="global-area-select">Area</label>
-                <select id="global-area-select" class="form-select">
-                    <option value="ALL">ALL</option>
-                    <option value="BF1">BF1</option>
-                    <option value="BF2">BF2</option>
-                </select>
-            </div>
-
-            <div class="control-group">
-                <label for="global-date-select">Range</label>
-                <select id="global-date-select" class="form-select">
-                    <option value="7">Last 7 Days</option>
-                    <option value="14">Last 14 Days</option>
-                    <option value="30">Last 30 Days</option>
-                    <option value="all">All Data</option>
-                </select>
-            </div>
-
-            <button type="button" id="btn-print" class="btn btn-secondary" aria-label="Print or Save PDF">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                <span>Print</span>
-            </button>
-
-            <button type="button" id="btn-theme-toggle" class="btn btn-secondary" aria-label="Toggle Dark/Light Theme">
-                <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg><span id="theme-toggle-text" class="visually-hidden">Theme</span>
-            </button>
-        </div>
-
-	<div class="header-branding">
-		<img src="/static/jspl_logo.png" alt="Jindal Steel" class="brand-logo">
-		<div class="brand-text">
-			<span class="subtext">Innovation for Excellence ©2026</span>
-			<span class="subtext-credit">Digital Transformation &amp; Automation</span>
-		</div>
-	</div>
-    </header>
-
-    <!-- Main Workspace -->
-    <main class="main-content">
-        <!-- Four KPI Cards -->
-        <section class="kpi-grid" aria-label="Latest Matched Metrics">
-            <!-- Card 1: Latest Complete Matched Trip -->
-            <article class="kpi-card" id="card-latest-trip">
-                <div class="kpi-header">Latest Complete Matched Trip</div>
-                <div class="kpi-body">
-                    <div class="kpi-meta-row">
-                        <span class="meta-label">Cast ID</span>
-                        <strong class="meta-value" id="kpi-cast-id">--</strong>
-                    </div>
-                    <div class="kpi-meta-row">
-                        <span class="meta-label">Torpedo No.</span>
-                        <strong class="meta-value highlight" id="kpi-torpedo-no">--</strong>
-                    </div>
-                    <div class="kpi-meta-row">
-                        <span class="meta-label">Static Source</span>
-                        <span class="meta-value badge" id="kpi-source">--</span>
-                    </div>
-                    <div class="kpi-meta-row">
-                        <span class="meta-label">Production Time</span>
-                        <span class="meta-value tabular" id="kpi-prod-time">--</span>
-                    </div>
-                </div>
-            </article>
-
-            <!-- Card 2: Static Weighbridge -->
-            <article class="kpi-card" id="card-static-wb">
-                <div class="kpi-header">Static Weighbridge</div>
-                <div class="kpi-body">
-                    <div class="primary-weight-display">
-                        <span class="weight-number" id="kpi-static-net" aria-live="polite">--</span>
-                        <span class="weight-unit">MT</span>
-                    </div>
-                    <div class="weight-supporting-grid">
-                        <div class="supp-block">
-                            <span class="supp-label">Gross</span>
-                            <span class="supp-value" id="kpi-static-gross">-- MT</span>
-                            <span class="supp-time" id="kpi-static-gross-time">--</span>
-                        </div>
-                        <div class="supp-block">
-                            <span class="supp-label">Tare</span>
-                            <span class="supp-value" id="kpi-static-tare">-- MT</span>
-                            <span class="supp-time" id="kpi-static-tare-time">--</span>
-                        </div>
-                    </div>
-                </div>
-            </article>
-
-            <!-- Card 3: In-Motion Weighbridge -->
-            <article class="kpi-card" id="card-imwb">
-                <div class="kpi-header">In-Motion Weighbridge</div>
-                <div class="kpi-body">
-                    <div class="primary-weight-display">
-                        <span class="weight-number" id="kpi-imwb-net" aria-live="polite">--</span>
-                        <span class="weight-unit">MT</span>
-                    </div>
-                    <div class="weight-supporting-grid">
-                        <div class="supp-block">
-                            <span class="supp-label">Gross</span>
-                            <span class="supp-value" id="kpi-imwb-gross">-- MT</span>
-                            <span class="supp-time" id="kpi-imwb-gross-time">--</span>
-                        </div>
-                        <div class="supp-block">
-                            <span class="supp-label">Tare</span>
-                            <span class="supp-value" id="kpi-imwb-tare">-- MT</span>
-                            <span class="supp-time" id="kpi-imwb-tare-time">--</span>
-                        </div>
-                    </div>
-                </div>
-            </article>
-
-            <!-- Card 4: Net Difference -->
-            <article class="kpi-card" id="card-net-delta">
-                <div class="kpi-header">Net Difference</div>
-                <div class="kpi-body">
-                    <div class="primary-weight-display">
-                        <span class="weight-number" id="kpi-net-diff-mt" aria-live="polite">--</span>
-                        <span class="weight-unit">MT</span>
-                    </div>
-                    <div class="delta-sub-display">
-                        <span class="delta-pct-tag" id="kpi-net-diff-pct">-- %</span>
-                        <span class="delta-formula-label" id="kpi-net-diff-sub">Static Net - In-Motion Net</span>
-                    </div>
-                </div>
-            </article>
-        </section>
-
-        <!-- Chart Section -->
-        <section class="panel-section chart-section">
-            <div class="section-toolbar">
-                <div class="section-title-wrap">
-                    <h2 class="panel-title">Net Difference (Torpedo-Wise)</h2>
-                    <span class="panel-subtitle">Complete matched trips • Static Net - In-Motion Net</span>
-                </div>
-                <div class="chart-selector-wrap" role="group" aria-label="Chart trip count">
-                    <span class="control-label">Plot:</span>
-                    <button type="button" class="btn-chip active" data-chart-count="10">Last 10</button>
-                    <button type="button" class="btn-chip" data-chart-count="20">Last 20</button>
-                    <button type="button" class="btn-chip" data-chart-count="50">Last 50</button>
-                    <button type="button" class="btn-chip" data-chart-count="100">Last 100</button>
-                    <button type="button" class="btn-chip" data-chart-count="all">All Torpedoes</button>
-					
-                </div>
-            </div>
-
-            <div id="chart-cap-notice" class="cap-banner is-hidden"></div>
-
-            <div class="chart-wrapper">
-                <div id="chart-container" class="svg-chart-container" role="img" aria-label="Bar chart showing net difference by torpedo"></div>
-                <div id="chart-empty-state" class="empty-state-card is-hidden">
-                    No complete matched trips available for charting in selected scope.
-                </div>
-            </div>
-        </section>
-
-        <!-- Detailed Table Section -->
-        <section class="panel-section table-section">
-            <div class="section-toolbar table-toolbar">
-                <div class="toolbar-left">
-                    <h2 class="panel-title">Operational Records</h2>
-                    <span id="table-record-count" class="badge">0 records</span>
-                </div>
-                <div class="toolbar-right">
-                    <div class="search-input-wrap">
-                        <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                        <input type="text" id="table-search-input" class="form-input" placeholder="Search Cast, Torpedo, Source..." aria-label="Search records">
-                    </div>
-                    <button type="button" id="btn-toggle-filters" class="btn btn-secondary">Column Filters <span class="filter-count is-hidden" aria-hidden="true">0</span></button>
-                    <div class="page-size-wrap">
-                        <label for="table-page-size">Show</label>
-                        <select id="table-page-size" class="form-select">
-                            <option value="10" selected>10</option>
-                            <option value="25">25</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                            <option value="all">All</option>
-                        </select>
-                    </div>
-                    <button type="button" id="btn-open-export" class="btn btn-primary">Export Data</button>
-                </div>
-            </div>
-
-            <div class="table-container">
-                <table class="data-table" id="weighment-table">
-                    <thead>
-                        <tr class="header-row">
-                            <th scope="col" aria-sort="none" data-col="BFCASTID" class="sortable">Cast ID</th>
-                            <th scope="col" aria-sort="none" data-col="TORPEDO_NO" class="sortable">Torpedo No.</th>
-                            <th scope="col" aria-sort="none" data-col="STATIC_SOURCE" class="sortable">Source</th>
-                            <th scope="col" aria-sort="none" data-col="STATIC_GROSS_WT" class="sortable num-col">Static Gross (MT)</th>
-                            <th scope="col" aria-sort="none" data-col="STATIC_TARE_WT" class="sortable num-col">Static Tare (MT)</th>
-                            <th scope="col" aria-sort="none" data-col="STATIC_NET_WT" class="sortable num-col">Static Net (MT)</th>
-                            <th scope="col" aria-sort="none" data-col="IMWB_GROSS_WT" class="sortable num-col">In-Motion Gross (MT)</th>
-                            <th scope="col" aria-sort="none" data-col="IMWB_TARE_WT" class="sortable num-col">In-Motion Tare (MT)</th>
-                            <th scope="col" aria-sort="none" data-col="IMWB_NET_WT" class="sortable num-col">In-Motion Net (MT)</th>
-                            <th scope="col" aria-sort="none" data-col="NET_WT_DIFFERENCE" class="sortable num-col">Net Difference (MT)</th>
-                            <th scope="col" aria-sort="none" data-col="STATIC_RECORD_TIME" class="sortable">Production Time</th>
-                            <th scope="col" aria-sort="none" data-col="MATCH_STATUS" class="sortable">Status</th>
-                        </tr>
-                        <tr class="filter-row" id="table-filter-row" class="filter-row is-hidden">
-                            <th><input type="text" class="col-filter" data-col="BFCASTID" placeholder="Filter..."></th>
-                            <th><input type="text" class="col-filter" data-col="TORPEDO_NO" placeholder="Filter..."></th>
-                            <th><input type="text" class="col-filter" data-col="STATIC_SOURCE" placeholder="Filter..."></th>
-                            <th><input type="text" class="col-filter" data-col="STATIC_GROSS_WT" placeholder=">10, =0..."></th>
-                            <th><input type="text" class="col-filter" data-col="STATIC_TARE_WT" placeholder=">10, =0..."></th>
-                            <th><input type="text" class="col-filter" data-col="STATIC_NET_WT" placeholder=">10, =0..."></th>
-                            <th><input type="text" class="col-filter" data-col="IMWB_GROSS_WT" placeholder=">10, =0..."></th>
-                            <th><input type="text" class="col-filter" data-col="IMWB_TARE_WT" placeholder=">10, =0..."></th>
-                            <th><input type="text" class="col-filter" data-col="IMWB_NET_WT" placeholder=">10, =0..."></th>
-                            <th><input type="text" class="col-filter" data-col="NET_WT_DIFFERENCE" placeholder=">0, <-5..."></th>
-                            <th><input type="text" class="col-filter" data-col="STATIC_RECORD_TIME" placeholder="Time..."></th>
-                            <th><input type="text" class="col-filter" data-col="MATCH_STATUS" placeholder="Status..."></th>
-                        </tr>
-                    </thead>
-                    <tbody id="weighment-table-body">
-                        <!-- Rendered dynamically -->
-                    </tbody>
-                </table>
-                <div id="table-empty-state" class="empty-state-card is-hidden">
-                    No records match current filters.
-                </div>
-            </div>
-
-					<div class="pagination-bar">
-			<span id="table-pagination-info" class="pagination-info">Showing 0 to 0 of 0</span>
-		<div class="pagination-controls">
-			<button type="button" id="btn-first-page" class="btn btn-secondary btn-sm" disabled>First</button>
-			<button type="button" id="btn-prev-page" class="btn btn-secondary btn-sm" disabled>Previous</button>
-			<span id="pagination-pages" class="page-numbers"></span>
-			<button type="button" id="btn-next-page" class="btn btn-secondary btn-sm" disabled>Next</button>
-			<button type="button" id="btn-last-page" class="btn btn-secondary btn-sm" disabled>Last</button>
-		</div>
-		</div>
-        </section>
-    </main>
-
-    <!-- Export Modal Dialog -->
-    <div id="export-modal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="export-modal-title">
-        <div class="modal-window">
-            <div class="modal-header">
-                <h3 id="export-modal-title" class="modal-title">Export Weighment Data</h3>
-                <button type="button" id="btn-close-export" class="modal-close-btn" aria-label="Close Export Dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-            </div>
-            <div class="modal-body">
-                <div class="form-row">
-                    <label for="export-scope-select">Export Scope</label>
-                    <select id="export-scope-select" class="form-select">
-                        <option value="current_view">Current filtered view</option>
-                        <option value="current_day">Current production day</option>
-                        <option value="7_days">Last 7 days</option>
-                        <option value="14_days">Last 14 days</option>
-                        <option value="30_days">Last 30 days</option>
-                        <option value="custom">Custom date range</option>
-                        <option value="all">All available data</option>
-                    </select>
-                </div>
-
-                <div id="export-custom-range" class="form-row custom-dates-grid is-hidden">
-                    <div>
-                        <label for="export-from-date">From Date</label>
-                        <input type="date" id="export-from-date" class="form-input">
-                    </div>
-                    <div>
-                        <label for="export-to-date">To Date</label>
-                        <input type="date" id="export-to-date" class="form-input">
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <label for="export-area-select">Production Area</label>
-                    <select id="export-area-select" class="form-select">
-                        <option value="current">Current area</option>
-                        <option value="ALL">ALL</option>
-                        <option value="BF1">BF1</option>
-                        <option value="BF2">BF2</option>
-                    </select>
-                </div>
-
-                <div class="form-row">
-                    <label for="export-format-select">Format</label>
-                    <select id="export-format-select" class="form-select">
-                        <option value="xlsx">Excel (.xlsx)</option>
-                        <option value="csv">CSV (.csv)</option>
-                    </select>
-                </div>
-
-                <div class="export-summary-box">
-                    <div class="summary-line"><span>Area:</span> <strong id="export-summary-area">--</strong></div>
-                    <div class="summary-line"><span>Range:</span> <strong id="export-summary-range">--</strong></div>
-                    <div class="summary-line"><span>Filters:</span> <strong id="export-summary-filters">--</strong></div>
-                    <div class="summary-line"><span>Estimated Rows:</span> <strong id="export-summary-rows">0</strong></div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" id="btn-cancel-export" class="btn btn-secondary">Cancel</button>
-                <button type="button" id="btn-confirm-export" class="btn btn-primary">Export Excel</button>
-            </div>
-        </div>
+{% block content %}
+{% macro datectl(p, label) %}
+<span class="dctl" id="{{ p }}Ctl">
+  <span class="seg" id="{{ p }}Mode" role="group" aria-label="{{ label }} date selection">
+    <button type="button" data-v="range" aria-pressed="true">Date range</button>
+    <button type="button" data-v="day" aria-pressed="false">Single day</button>
+  </span>
+  <span class="dr-range">
+    <label class="inl">From <input type="date" id="{{ p }}From" aria-label="{{ label }} from date"></label>
+    <label class="inl">To <input type="date" id="{{ p }}To" aria-label="{{ label }} to date"></label>
+  </span>
+  <span class="dr-day" hidden>
+    <button type="button" class="btn sm" id="{{ p }}DPrev" aria-label="Previous day">‹</button>
+    <input type="date" id="{{ p }}Day" aria-label="{{ label }} day">
+    <button type="button" class="btn sm" id="{{ p }}DNext" aria-label="Next day">›</button>
+    <label class="inl"><input type="checkbox" id="{{ p }}Pd"> Production day (22:00 to 22:00)</label>
+  </span>
+</span>
+{% endmacro %}
+<!-- One date selection for the whole page -->
+<section class="card datebar" aria-label="Date selection for the whole page">
+  <div class="db-top">
+    <div>
+      <h2 class="ct">Show data for</h2>
+      <span class="sub">One selection for the latest trip, the chart, the summary and the table below.</span>
     </div>
+    <div class="db-now" id="dNow" aria-live="polite"></div>
+  </div>
+  <div class="rng" role="group" aria-label="Date selection">
+    <div class="seg" id="dPresetSeg" role="group" aria-label="Quick period">
+      <button type="button" data-v="shift" aria-pressed="true">Current shift</button>
+      <button type="button" data-v="day" aria-pressed="false">Today</button>
+      <button type="button" data-v="7" aria-pressed="false">7 days</button>
+      <button type="button" data-v="30" aria-pressed="false">30 days</button>
+      <button type="button" data-v="all" aria-pressed="false">All</button>
+    </div>
+    {{ datectl("d", "Page") }}
+  </div>
+  <div class="note" id="dNote" role="status" hidden></div>
+</section>
 
-    <footer class="print-footer">Generated report · In-Motion Weighbridge · <span id="print-scope-label">Current selected scope</span></footer>
-    <script src="/static/app.js"></script>
-</body>
-</html>
+<!-- Latest trip -->
+<section class="stack" aria-labelledby="latestH">
+  <div class="sec-head">
+    <div>
+      <h2 class="sec-title" id="latestH">Latest trip</h2>
+      <span class="sub" id="latestSub">Most recent complete trip</span>
+    </div>
+    <div class="rng" role="group" aria-label="Browse trips">
+      <button type="button" class="btn" id="cClear">Latest</button>
+      <button type="button" class="btn" id="cPrev" aria-label="Older trip">‹ Older</button>
+      <button type="button" class="btn" id="cNext" aria-label="Newer trip">Newer ›</button>
+    </div>
+  </div>
+  <div class="row">
+    <article class="card tile">
+      <div class="tile-h"><i style="background:var(--ink)"></i><h3>Torpedo details</h3></div>
+      <div class="tile-s">Latest complete trip</div>
+      <div class="kv"><span>Cast ID</span><b id="lCast">—</b></div>
+      <div class="kv"><span>Torpedo no.</span><b class="strong" id="lTorp">—</b></div>
+      <div class="kv"><span>Area</span><b id="lArea">—</b></div>
+    </article>
+    <article class="card tile">
+      <div class="tile-h"><i style="background:#FF8A4C"></i><h3>In-motion</h3></div>
+      <div class="tile-s" id="lITime">Weighed at —</div>
+      <div class="kv"><span>Gross</span><b id="lIG">—</b></div>
+      <div class="kv"><span>Tare</span><b id="lIT">—</b></div>
+      <div class="kv"><span>Net</span><b class="strong ember" id="lIN">—</b></div>
+    </article>
+    <article class="card tile">
+      <div class="tile-h"><i style="background:#8DB3FF"></i><h3>Static</h3></div>
+      <div class="tile-s" id="lSTime">Weighed at —</div>
+      <div class="kv"><span>Gross</span><b id="lSG">—</b></div>
+      <div class="kv"><span>Tare</span><b id="lST">—</b></div>
+      <div class="kv"><span>Net</span><b class="strong blue" id="lSN">—</b></div>
+    </article>
+    <article class="card tile">
+      <div class="tile-h"><i style="background:var(--ok)"></i><h3>Net weight</h3></div>
+      <div class="tile-s">Static minus in-motion</div>
+      <div class="kv"><span>In-motion net</span><b id="nIN">—</b></div>
+      <div class="kv"><span>Static net</span><b id="nSN">—</b></div>
+      <div class="kv"><span>Difference</span><b class="strong" id="nD">—</b></div>
+    </article>
+  </div>
+</section>
+
+<!-- Chart + summary -->
+<section class="row">
+  <article class="card chart-card">
+    <div class="head">
+      <h2 class="ct" id="chartTitle">Torpedo by torpedo</h2>
+      <div class="seg" id="typeSeg" role="group" aria-label="Chart type">
+        <button type="button" data-v="scatter" aria-pressed="true">Dots</button>
+        <button type="button" data-v="bars" aria-pressed="false">Bars</button>
+        <button type="button" data-v="box" aria-pressed="false">Box plot</button>
+      </div>
+    </div>
+    <p class="sub" id="chartSub"></p>
+    <div class="chart-tools">
+      <div class="legend" id="legend"></div>
+      <div class="legend">
+        <label id="hiWrap">Highlight torpedo <select id="hiSel" aria-label="Highlight a torpedo"><option value="">All</option></select></label>
+        <label id="grpWrap" hidden>Group by <select id="grpSel" aria-label="Box plot grouping"><option value="day">Production day</option><option value="shift">Shift</option><option value="hour">Hour</option><option value="torp">Torpedo</option><option value="area">Area</option></select></label>
+        <div class="zoom" role="group" aria-label="Zoom">
+          <button type="button" class="btn sm" id="zIn" aria-label="Zoom in">+</button>
+          <button type="button" class="btn sm" id="zOut" aria-label="Zoom out">−</button>
+          <button type="button" class="btn sm" id="zTol">Zoom to tolerance</button>
+          <button type="button" class="btn sm" id="zFit">Fit all</button>
+        </div>
+      </div>
+    </div>
+    <div class="plot-box" id="plotBox"></div>
+    <p class="foot-note" id="chartNote"></p>
+  </article>
+
+  <article class="card summary-card">
+    <h2 class="ct">Summary for this range</h2>
+    <p class="sub" id="sumSub"></p>
+    <div class="stat-grid" id="sumStats"></div>
+    <h3 class="mini-h">By shift</h3>
+    <div id="shifts"></div>
+    <h3 class="mini-h">Outside tolerance most often</h3>
+    <div id="topT"></div>
+  </article>
+</section>
+
+<!-- Largest differences -->
+<section class="card" aria-labelledby="diffH">
+  <div class="head">
+    <h2 class="ct" id="diffH">Largest differences</h2>
+  </div>
+  <p class="sub" id="diffNote"></p>
+
+  <div class="toolbar">
+    <span class="count" id="tCount" aria-live="polite"></span>
+    <label class="inl">Min difference
+      <select id="fMin" aria-label="Minimum difference">
+        <option value="0">Any</option><option value="1">1.0 MT or more</option><option value="1.5">1.5 MT or more</option><option value="2">2.0 MT or more</option>
+      </select>
+    </label>
+    <label class="inl">Sort by
+      <select id="fSort" aria-label="Sort rows">
+        <option value="abs">Largest difference</option><option value="time">Latest first</option><option value="torp">Torpedo</option><option value="cast">Cast ID</option>
+      </select>
+    </label>
+    <button type="button" class="btn" id="fReset">Reset filters</button>
+    <button type="button" class="btn pri" id="exportBtn"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>Export to Excel</button>
+  </div>
+  <div class="note" id="exportMsg" role="status" hidden></div>
+
+  <div class="scroll">
+    <div class="tbl" role="table" aria-label="Largest differences">
+      <div class="tr th" role="row">
+        <div role="columnheader">Weighed</div><div role="columnheader">Cast ID</div><div role="columnheader" class="k">Torpedo</div><div role="columnheader">Area</div><div role="columnheader">Shift</div>
+        <div role="columnheader" class="r">Static net</div><div role="columnheader" class="r">In-motion net</div><div role="columnheader" class="r k">Difference</div><div role="columnheader">Status</div>
+      </div>
+      <div class="tr tf" role="row">
+        <div role="cell"></div>
+        <div role="cell"><input type="text" id="fCast" placeholder="Search cast" aria-label="Filter by cast ID"></div>
+        <div role="cell"><select id="fTorp" aria-label="Filter by torpedo"><option value="">All</option></select></div>
+        <div role="cell"><select id="fArea" aria-label="Filter by area"><option value="">All</option><option value="BF1">BF1</option><option value="BF2">BF2</option></select></div>
+        <div role="cell"><select id="fShift" aria-label="Filter by shift"><option value="">All</option><option value="A">Shift A</option><option value="B">Shift B</option><option value="C">Shift C</option></select></div>
+        <div role="cell"></div><div role="cell"></div>
+        <div role="cell"><select id="fDir" aria-label="Filter by direction of difference"><option value="">All</option><option value="hi">Static higher</option><option value="lo">In-motion higher</option></select></div>
+        <div role="cell"><select id="fStatus" aria-label="Filter by status"><option value="">All</option><option value="out">Outside tolerance</option><option value="in">Inside tolerance</option></select></div>
+      </div>
+      <div id="tbody"></div>
+    </div>
+  </div>
+  <div class="empty" id="tEmpty" hidden>No trips match these filters. Use Reset filters to start again.</div>
+  <div class="foot"><span id="tFoot"></span><button type="button" class="btn" id="tMore" hidden>Show more</button></div>
+</section>
+
+<footer class="page-foot">
+  <span>Difference = static net weight minus in-motion net weight. Production day runs 22:00 to 22:00 IST.</span>
+  <span>Tolerance <b id="tolTxt"></b> MT · pass target <b id="tgtTxt"></b>% (set DELTA_TOLERANCE_MT and PASS_TARGET_PCT to change).</span>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='home.js') }}"></script>
+{% endblock %}

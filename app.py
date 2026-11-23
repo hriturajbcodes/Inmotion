@@ -22,6 +22,9 @@ except ImportError:
 
 from flask import Flask, request, jsonify, render_template, Response
 import export_service
+from respcache import cached_view
+from activity import init_activity
+from admin import init_admin
 logger = logging.getLogger("imwb_app")
 
 app = Flask(__name__)
@@ -422,14 +425,24 @@ def generate_operational_interpretation(stats):
 
 
 # Web Routes
+def page_config():
+    """Tolerance (MT) and pass target (%) shown on the dashboard pages."""
+    def _f(name, default):
+        try:
+            return float(os.environ.get(name, default))
+        except ValueError:
+            return float(default)
+    return {"tolerance": _f("DELTA_TOLERANCE_MT", "1.0"), "target": _f("PASS_TARGET_PCT", "95")}
+
+
 @app.route("/")
 def index():
-    return render_template("pulse.html", tolerance=float(os.environ.get("DELTA_TOLERANCE_MT", "1.0")))
+    return render_template("index.html", **page_config())
 
 
 @app.route("/insights")
 def insights():
-    return render_template("insights.html")
+    return render_template("insights.html", **page_config())
 
 
 @app.route("/healthz")
@@ -456,6 +469,7 @@ def healthz():
 
 
 @app.route("/api/dashboard")
+@cached_view
 def api_dashboard():
     area = request.args.get("area", "ALL")
     days = request.args.get("days", "7")
@@ -468,7 +482,7 @@ def api_dashboard():
     latest_matched = all_matched[0] if all_matched else None
 
     # Chart Selection: Independent of date filter (fetched from recent matched trips)
-    unfiltered_rows = fetch_dashboard_rows(area=area, days="all")
+    unfiltered_rows = all_rows if days == "all" else fetch_dashboard_rows(area=area, days="all")
     unfiltered_matched = [r for r in unfiltered_rows if is_complete_matched(r)]
 
     if chart_count.lower() == "all":
@@ -513,6 +527,7 @@ def api_dashboard():
 
 
 @app.route("/api/insights")
+@cached_view
 def api_insights():
     area = request.args.get("area", "ALL")
     date_param = request.args.get("production_date")
@@ -686,6 +701,26 @@ def legacy_export_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename=IMWB_Weighbridge_Report_{timestamp_str}.csv"}
     )
+
+
+def _admin_info():
+    """Server facts shown on the admin page."""
+    try:
+        threads = int(os.environ.get("WAITRESS_THREADS", ""))
+    except ValueError:
+        threads = None
+    try:
+        ttl = float(os.environ.get("RESPONSE_CACHE_TTL_SECONDS", "4"))
+    except ValueError:
+        ttl = 4.0
+    live = bool(PYODBC_AVAILABLE and IMWB_SERVER)
+    return {"worker_threads": threads, "cache_ttl_s": ttl,
+            "data_source": "Live database" if live else "Simulated data"}
+
+
+# Who is using the site (admin page) and the shared-answer cache
+init_activity(app, PLANT_TZ)
+init_admin(app, page_config, _admin_info)
 
 
 if __name__ == "__main__":

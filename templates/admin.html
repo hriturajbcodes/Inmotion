@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">{% endblock %}
+
+{% block content %}
+{% if state == 'ok' %}
+<section class="stack">
+  <div class="sec-head">
+    <div>
+      <h1 class="sec-title">Site activity</h1>
+      <span class="sub" id="adSub">Loading…</span>
+    </div>
+    <div class="rng"><span class="pill neu" id="adHealth">Checking…</span><a class="btn" href="{{ url_for('index') }}">‹ Back to Overview</a></div>
+  </div>
+  <p class="lede" id="adVerdict"></p>
+</section>
+
+<section class="ad-kpis" aria-label="Key numbers">
+  <article class="card ad-kpi"><div class="t">Active now</div><div class="v" id="kNow">—</div><div class="s" id="kNowS"></div></article>
+  <article class="card ad-kpi"><div class="t">Last 5 minutes</div><div class="v" id="k5">—</div><div class="s">people who requested data</div></article>
+  <article class="card ad-kpi"><div class="t">Today</div><div class="v" id="kDay">—</div><div class="s">different people since midnight</div></article>
+  <article class="card ad-kpi"><div class="t">Requests per minute</div><div class="v" id="kReq">—</div><div class="s" id="kReqS"></div></article>
+  <article class="card ad-kpi"><div class="t">Being served now</div><div class="v" id="kIn">—</div><div class="s" id="kInS"></div></article>
+</section>
+
+<section class="card" aria-labelledby="usH">
+  <div class="head"><h2 class="ct" id="usH">Usage to date</h2><span class="sub" id="usSub"></span></div>
+  <div class="note err" id="usErr" role="alert" hidden></div>
+  <div class="ad-stats ad-big" id="usKpi"></div>
+  <div class="row" style="margin-top:16px">
+    <div>
+      <h3 class="mini-h">Different users per day</h3>
+      <div class="ad-chart" id="chDaily"></div>
+      <div class="ad-axis" id="usAx1"></div>
+    </div>
+    <div>
+      <h3 class="mini-h">Total different users to date</h3>
+      <div class="ad-chart" id="chTotal"></div>
+      <div class="ad-axis" id="usAx2"></div>
+    </div>
+  </div>
+  <h3 class="mini-h" style="margin-top:16px">Most regular computers</h3>
+  <div class="scroll"><div class="ad-tbl ad-pc" role="table" aria-label="Computers by number of days used">
+    <div class="tr th" role="row"><div>Computer</div><div>Browser</div><div>First seen</div><div>Last seen</div><div class="r">Days used</div><div class="r">Visits</div></div>
+    <div id="usPc"></div>
+  </div></div>
+  <p class="sub" id="usFile" style="margin-top:12px"></p>
+</section>
+
+<section class="row">
+  <article class="card">
+    <h2 class="ct">People on the site</h2>
+    <p class="sub">Different people active in each minute, last 60 minutes.</p>
+    <div class="ad-chart" id="chUsers"></div>
+    <div class="ad-axis"><span>60 min ago</span><span>30 min ago</span><span>now</span></div>
+  </article>
+  <article class="card">
+    <h2 class="ct">Requests</h2>
+    <p class="sub">Page and data requests per minute, last 60 minutes. Red marks server errors.</p>
+    <div class="ad-chart" id="chReq"></div>
+    <div class="ad-axis"><span>60 min ago</span><span>30 min ago</span><span>now</span></div>
+  </article>
+</section>
+
+<section class="card">
+  <h2 class="ct">Is the server keeping up?</h2>
+  <p class="sub">Response times for the last 5 minutes.</p>
+  <div class="ad-stats" id="adCap"></div>
+</section>
+
+<section class="card">
+  <div class="head"><h2 class="ct">What people are requesting</h2><span class="sub">Last 5 minutes, and total since the server started</span></div>
+  <div class="scroll"><div class="ad-tbl ad-ep" role="table" aria-label="Requests by resource">
+    <div class="tr th" role="row"><div>Resource</div><div class="r">Last 5 min</div><div class="r">Total</div><div class="r">Average</div><div class="r">Slowest 5%</div><div class="r">Served from cache</div><div class="r">Errors</div></div>
+    <div id="adEp"></div>
+  </div></div>
+</section>
+
+<section class="card">
+  <div class="head"><h2 class="ct">Who is on the site</h2><span class="sub" id="adWhoSub"></span></div>
+  <div class="scroll"><div class="ad-tbl ad-who" role="table" aria-label="Visitors">
+    <div class="tr th" role="row"><div>Visitor</div><div>Computer</div><div>Browser</div><div>On page</div><div>First seen</div><div>Last seen</div><div class="r">Requests</div><div>Status</div></div>
+    <div id="adWho"></div>
+  </div></div>
+  <div class="empty" id="adWhoEmpty" hidden>Nobody has opened the site since the server started.</div>
+</section>
+
+<footer class="page-foot">
+  <span>"Active" means the person's browser asked the server for something within the last <b id="adWin"></b> seconds. An open dashboard asks every 5 seconds, so closing the tab drops the person from the count within that window.</span>
+  <span>The live numbers above are kept in memory and reset when the server restarts. "Usage to date" is read from the log file, so it keeps counting across restarts. The admin page's own requests are not counted.</span>
+</footer>
+
+{% elif state == 'login' %}
+<section class="card ad-gate">
+  <h1 class="ct">Admin key needed</h1>
+  <p class="sub">Enter the admin key (the ADMIN_KEY value in the server's .env file).</p>
+  <form method="get" action="{{ url_for('admin.page') }}" class="rng" style="margin-top:14px">
+    <input type="password" name="key" aria-label="Admin key" autocomplete="current-password" required style="min-width:260px">
+    <button class="btn pri" type="submit">Open admin page</button>
+  </form>
+</section>
+{% elif state == 'locked' %}
+<section class="card ad-gate"><h1 class="ct">Too many attempts</h1><p class="sub">Wait a minute and try again.</p></section>
+{% else %}
+<section class="card ad-gate">
+  <h1 class="ct">Admin page is limited to the server computer</h1>
+  <p class="sub">To open it from another computer, add a line <b>ADMIN_KEY=your-secret-word</b> to the server's .env file, restart the site, then open /admin?key=your-secret-word.</p>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}{% if state == 'ok' %}<script src="{{ url_for('static', filename='admin.js') }}"></script>{% endif %}{% endblock %}
